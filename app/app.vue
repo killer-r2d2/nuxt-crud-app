@@ -1,64 +1,39 @@
 <script setup lang="ts">
-const STORAGE_KEY = "nuxt-crud-names";
+type NameItem = { id: number; name: string }
 
-const newName = ref("");
-const names = ref<{ id: number; name: string }[]>([]);
-
-const nextNameId = () => {
-  const maxId = names.value.reduce(
-    (currentMax, item) => Math.max(currentMax, item.id),
-    0,
-  );
-  return maxId + 1;
-};
-
-onMounted(() => {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return;
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return;
-    const restored = parsed.filter(
-      (item): item is { id: number; name: string } =>
-        item !== null &&
-        typeof item === "object" &&
-        typeof (item as { id: unknown }).id === "number" &&
-        typeof (item as { name: unknown }).name === "string",
-    );
-    names.value = restored;
-  } catch {
-    /* ignore corrupt storage */
-  }
+const { data: names, refresh } = await useFetch<NameItem[]>("/api/names", {
+  default: () => [],
 });
 
-watch(
-  names,
-  (value) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
-  },
-  { deep: true },
-);
+const newName = ref("");
 
 const editDialogRef = ref<HTMLDialogElement | null>(null);
 const editedId = ref<number | null>(null);
 const editedName = ref("");
 
-const addName = () => {
-  names.value.push({ id: nextNameId(), name: newName.value });
-  newName.value = "";
-};
+const addName = async () => {
+  const trimmedName = newName.value.trim();
+  if (!trimmedName) return;
 
-const deleteName = (id: number) => {
-  names.value = names.value.filter((name) => name.id !== id);
-};
-
-const editName = (id: number, name: string) => {
-  names.value = names.value.map((item) => {
-    if (item.id === id) {
-      return { ...item, name };
-    }
-    return item;
+  await $fetch("/api/names", {
+    method: "POST",
+    body: { name: trimmedName },
   });
+  newName.value = "";
+  await refresh();
+};
+
+const deleteName = async (id: number) => {
+  await $fetch(`/api/names/${id}`, { method: "DELETE" });
+  await refresh();
+};
+
+const editName = async (id: number, name: string) => {
+  await $fetch(`/api/names/${id}`, {
+    method: "PATCH",
+    body: { name },
+  });
+  await refresh();
 };
 
 const openEditDialog = (id: number, currentName: string) => {
@@ -67,9 +42,12 @@ const openEditDialog = (id: number, currentName: string) => {
   editDialogRef.value?.showModal();
 };
 
-const confirmEdit = () => {
+const confirmEdit = async () => {
   if (editedId.value === null) return;
-  editName(editedId.value, editedName.value);
+  const trimmedName = editedName.value.trim();
+  if (!trimmedName) return;
+
+  await editName(editedId.value, trimmedName);
   editDialogRef.value?.close();
   editedId.value = null;
 };
