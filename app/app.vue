@@ -1,13 +1,50 @@
 <script setup lang="ts">
+const STORAGE_KEY = "nuxt-crud-names";
+
 const newName = ref("");
 const names = ref<{ id: number; name: string }[]>([]);
+
+const nextNameId = () => {
+  const maxId = names.value.reduce(
+    (currentMax, item) => Math.max(currentMax, item.id),
+    0,
+  );
+  return maxId + 1;
+};
+
+onMounted(() => {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return;
+    const restored = parsed.filter(
+      (item): item is { id: number; name: string } =>
+        item !== null &&
+        typeof item === "object" &&
+        typeof (item as { id: unknown }).id === "number" &&
+        typeof (item as { name: unknown }).name === "string",
+    );
+    names.value = restored;
+  } catch {
+    /* ignore corrupt storage */
+  }
+});
+
+watch(
+  names,
+  (value) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+  },
+  { deep: true },
+);
 
 const editDialogRef = ref<HTMLDialogElement | null>(null);
 const editedId = ref<number | null>(null);
 const editedName = ref("");
 
 const addName = () => {
-  names.value.push({ id: names.value.length + 1, name: newName.value });
+  names.value.push({ id: nextNameId(), name: newName.value });
   newName.value = "";
 };
 
