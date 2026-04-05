@@ -1,9 +1,5 @@
 <script setup lang="ts">
-type NameItem = { id: number; name: string }
-
-const { data: names, refresh } = await useFetch<NameItem[]>("/api/names", {
-  default: () => [],
-});
+const { names, createName, removeName, updateName } = await useNames();
 
 const newName = ref("");
 
@@ -12,29 +8,11 @@ const editedId = ref<number | null>(null);
 const editedName = ref("");
 
 const addName = async () => {
-  const trimmedName = newName.value.trim();
-  if (!trimmedName) return;
-
-  await $fetch("/api/names", {
-    method: "POST",
-    body: { name: trimmedName },
-  });
+  await createName(newName.value);
   newName.value = "";
-  await refresh();
 };
 
-const deleteName = async (id: number) => {
-  await $fetch(`/api/names/${id}`, { method: "DELETE" });
-  await refresh();
-};
-
-const editName = async (id: number, name: string) => {
-  await $fetch(`/api/names/${id}`, {
-    method: "PATCH",
-    body: { name },
-  });
-  await refresh();
-};
+const deleteName = (id: number) => removeName(id);
 
 const openEditDialog = (id: number, currentName: string) => {
   editedId.value = id;
@@ -44,10 +22,8 @@ const openEditDialog = (id: number, currentName: string) => {
 
 const confirmEdit = async () => {
   if (editedId.value === null) return;
-  const trimmedName = editedName.value.trim();
-  if (!trimmedName) return;
 
-  await editName(editedId.value, trimmedName);
+  await updateName(editedId.value, editedName.value);
   editDialogRef.value?.close();
   editedId.value = null;
 };
